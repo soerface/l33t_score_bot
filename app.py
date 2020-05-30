@@ -6,14 +6,14 @@ from telegram.error import BadRequest
 
 from telegram.ext import Updater, MessageHandler, Filters, CommandHandler
 from telegram import KeyboardButton, ReplyKeyboardMarkup
+from redis import Redis
 
 import logging
-
-
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
 
+redis = Redis(host=os.environ.get('REDIS_HOST', 'redis'), port=os.environ.get('REDIS_PORT', 6379))
 
 def utc_to_local(utc_dt):
     return utc_dt.replace(tzinfo=timezone.utc).astimezone(tz=None)
