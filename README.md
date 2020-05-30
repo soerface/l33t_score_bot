@@ -32,6 +32,12 @@ Spin up the application:
 The following environment variables can be used in .env file:
 - REDIS_HOST
 - REDIS_PORT
+- LOG_LEVEL, value can be one of the following:
+    - CRITICAL
+    - ERROR
+    - WARNING
+    - INFO (default)
+    - DEBUG
 
 ## Development setup
 
