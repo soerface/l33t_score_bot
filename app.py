@@ -59,6 +59,7 @@ def build_chat_scores(chat_id: int):
 
 def handle_incoming_message(update: Update, context: CallbackContext):
     logging.debug(update.effective_chat)
+    print('eyyyy')
     msg = update.message
     {
         'group': handle_group_chat,
@@ -71,6 +72,7 @@ def handle_incoming_message(update: Update, context: CallbackContext):
 def handle_group_chat(update: Update, context: CallbackContext):
     chat_id: int = update.message.chat_id
     current_timezone = redis.get(f'group:{chat_id}:settings:timezone')
+    print('woololo')
     if not current_timezone:
         context.bot.send_message(chat_id=chat_id,
                                  text="Sorry to interrupt you, but you need to set a /timezone")
@@ -198,7 +200,15 @@ def handle_score_command(update: Update, context: CallbackContext):
 
 
 def handle_clock_command(update: Update, context: CallbackContext):
-    context.bot.send_message(chat_id=update.message.chat_id, text=f'I received your message at {update.message.date}')
+    chat_id = update.message.chat_id
+    current_timezone = redis.get(f'group:{chat_id}:settings:timezone')
+    if not current_timezone:
+        context.bot.send_message(chat_id=chat_id,
+                                 text="Sorry to interrupt you, but you need to set a /timezone")
+        return
+    tz = timezone(current_timezone)
+    msg_sent_date = update.message.date.astimezone(tz)
+    context.bot.send_message(chat_id=update.message.chat_id, text=f'I received your message at {msg_sent_date}')
 
 
 def handle_sprueche_command(update: Update, context: CallbackContext):
