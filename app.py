@@ -51,6 +51,8 @@ def build_chat_scores(chat_id: int):
         name = redis.get(f'user:{user_id}:name').decode()
         value = int(redis.get(key))
         scores.append((name, value))
+    if not scores:
+        return 'No one has made any points so far…'
     scores = sorted(scores, key=lambda x: x[1], reverse=True)
     return '\n'.join([f'- {x[0]}: {x[1]}' for x in scores])
 
