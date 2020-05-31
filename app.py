@@ -78,9 +78,11 @@ def handle_group_chat(update: Update, context: CallbackContext):
     hour, minute = msg_sent_date.hour, msg_sent_date.minute
 
     today = msg_sent_date.strftime('%Y-%m-%d')
+    yesterday = (msg_sent_date - timedelta(days=1)).strftime('%Y-%m-%d')
     last_scored_day = redis.get(f'group:{chat_id}:last_scored_day').decode()
+    this_day = datetime.strptime(today, '%Y-%m-%d').astimezone(tz)
     last_day = datetime.strptime(last_scored_day, '%Y-%m-%d').astimezone(tz)
-    delta = (msg_sent_date - last_day)
+    delta = (this_day - last_day)
 
     if hour == 13 and minute == 37 and delta.days >= 1:
         winner: User = update.message.from_user
@@ -103,14 +105,15 @@ def handle_group_chat(update: Update, context: CallbackContext):
 
         if (hour == 13 and minute > 37) or hour > 13:
             n = delta.days
+            redis.set(f'group:{chat_id}:last_scored_day', today)
         else:
             n = delta.days - 1
+            redis.set(f'group:{chat_id}:last_scored_day', yesterday)
 
         if n > 1:
             context.bot.send_message(chat_id=chat_id,
                                      text=f"You even forgot it for {n} days... I'm disappointed.")
         increase_score(chat_id, context.bot, n=n)
-        redis.set(f'group:{chat_id}:last_scored_day', today)
         context.bot.send_message(chat_id=chat_id, text=build_chat_scores(chat_id))
 
     # out_msg = context.bot.send_message(...)chat_id=update.message.chat_id, text=f'Your message was from {msg_sent_date}')
