@@ -211,7 +211,10 @@ def handle_clock_command(update: Update, context: CallbackContext):
 
 def handle_my_id_command(update: Update, context: CallbackContext):
     context.bot.send_message(chat_id=update.message.chat_id,
-                             text=f'group:{update.message.chat_id}:score:{update.message.from_user.id}')
+                             text='\n'.join([
+                                 f'set group:{update.message.chat_id}:score:{update.message.from_user.id} X',
+                                 f'set user:{update.message.from_user.id}:name "{update.message.from_user.first_name}"'
+                             ]))
 
 
 def handle_sprueche_command(update: Update, context: CallbackContext):
