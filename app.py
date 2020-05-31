@@ -59,7 +59,6 @@ def build_chat_scores(chat_id: int):
 
 def handle_incoming_message(update: Update, context: CallbackContext):
     logging.debug(update.effective_chat)
-    print('eyyyy')
     msg = update.message
     {
         'group': handle_group_chat,
@@ -72,7 +71,6 @@ def handle_incoming_message(update: Update, context: CallbackContext):
 def handle_group_chat(update: Update, context: CallbackContext):
     chat_id: int = update.message.chat_id
     current_timezone = redis.get(f'group:{chat_id}:settings:timezone')
-    print('woololo')
     if not current_timezone:
         context.bot.send_message(chat_id=chat_id,
                                  text="Sorry to interrupt you, but you need to set a /timezone")
@@ -211,6 +209,11 @@ def handle_clock_command(update: Update, context: CallbackContext):
     context.bot.send_message(chat_id=update.message.chat_id, text=f'I received your message at {msg_sent_date}')
 
 
+def handle_my_id_command(update: Update, context: CallbackContext):
+    context.bot.send_message(chat_id=update.message.chat_id,
+                             text=f'group:{update.message.chat_id}:score:{update.message.from_user.id}')
+
+
 def handle_sprueche_command(update: Update, context: CallbackContext):
     if len(context.args) == 0:
         return
@@ -232,11 +235,13 @@ def main():
         BotCommand('timezone', 'Changes the timezone of a group'),
         BotCommand('score', 'Prints the scores of everyone'),
         BotCommand('clock', 'Outputs the date of the received message'),
+        BotCommand('my_id', 'Outputs your id which is internally used for score tracking'),
     ])
     updater.dispatcher.add_handler(CommandHandler('timezone', handle_timezone_command, Filters.group))
     updater.dispatcher.add_handler(CommandHandler('start', handle_start_command))
     updater.dispatcher.add_handler(CommandHandler('score', handle_score_command))
     updater.dispatcher.add_handler(CommandHandler('clock', handle_clock_command))
+    updater.dispatcher.add_handler(CommandHandler('my_id', handle_my_id_command))
     updater.dispatcher.add_handler(CommandHandler('sprueche', handle_sprueche_command))
     updater.dispatcher.add_handler(
         MessageHandler(Filters.group & (Filters.text | Filters.sticker), handle_incoming_message))
