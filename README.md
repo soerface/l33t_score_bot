@@ -4,6 +4,8 @@ Let it join a telegram group. It will give a point to
 the person, who is the first to write anything between
 13:37:00 and 13:37:59 on each day.
 
+Get started: https://t.me/leet_score_bot
+
 ## Setup
 
 Create a bot account with [BotFather](https://t.me/BotFather).
