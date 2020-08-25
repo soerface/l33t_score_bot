@@ -2,12 +2,13 @@ import os
 import sys
 from datetime import datetime, timedelta
 from random import choice
+from typing import List
 
 import pytz
 from pytz import timezone
 
-from telegram.ext import Updater, MessageHandler, Filters, CommandHandler, CallbackContext
-from telegram import KeyboardButton, ReplyKeyboardMarkup, Update, BotCommand, User
+from telegram.ext import Updater, MessageHandler, Filters, CommandHandler, CallbackContext, CallbackQueryHandler
+from telegram import Update, BotCommand, User, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 from redis import Redis
 
 import logging
@@ -15,7 +16,12 @@ import logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.getLevelName(os.environ.get('LOG_LEVEL', 'INFO')))
 
-redis = Redis(host=os.environ.get('REDIS_HOST', 'redis'), port=os.environ.get('REDIS_PORT', 6379))
+redis = Redis(
+    host=os.environ.get('REDIS_HOST', 'redis'),
+    port=os.environ.get('REDIS_PORT', 6379),
+    charset='utf-8',
+    decode_responses=True
+)
 
 SPRUECHE = [
     'Weil ihr nix könnt. Punkt für mich.',
@@ -48,13 +54,20 @@ def build_chat_scores(chat_id: int):
     scores = []
     for key in redis.scan_iter(f'group:{chat_id}:score:*'):
         user_id = int(key.rpartition(b':')[2])
-        name = redis.get(f'user:{user_id}:name').decode()
+        name = redis.get(f'user:{user_id}:name')
         value = int(redis.get(key))
         scores.append((name, value))
     if not scores:
         return 'No one has made any points so far…'
     scores = sorted(scores, key=lambda x: x[1], reverse=True)
     return '\n'.join([f'- {x[0]}: {x[1]}' for x in scores])
+
+
+def get_timezone_region_markup(continents):
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton(x, callback_data=':'.join(['timezone', x])) for x in continents[i:i + 3]]
+         for i in range(0, len(continents), 3)]
+    )
 
 
 def handle_incoming_message(update: Update, context: CallbackContext):
@@ -81,7 +94,7 @@ def handle_group_chat(update: Update, context: CallbackContext):
 
     today = msg_sent_date.strftime('%Y-%m-%d')
     yesterday = (msg_sent_date - timedelta(days=1)).strftime('%Y-%m-%d')
-    last_scored_day = redis.get(f'group:{chat_id}:last_scored_day').decode()
+    last_scored_day = redis.get(f'group:{chat_id}:last_scored_day')
     this_day = datetime.strptime(today, '%Y-%m-%d').astimezone(tz)
     last_day = datetime.strptime(last_scored_day, '%Y-%m-%d').astimezone(tz)
     delta = (this_day - last_day)
@@ -147,41 +160,12 @@ def handle_removed_from_group(update: Update, context: CallbackContext):
 
 def handle_timezone_command(update: Update, context: CallbackContext):
     continents = sorted(set([x.partition('/')[0] for x in pytz.common_timezones]))
-    if len(context.args) == 0:
-        current_timezone = redis.get(f'group:{update.message.chat_id}:settings:timezone')
-        reply = ReplyKeyboardMarkup(
-            [[KeyboardButton(f'/timezone {x}') for x in continents[i:i + 3]] for i in range(0, len(continents), 3)],
-            one_time_keyboard=True
-        )
-        context.bot.send_message(chat_id=update.message.chat_id,
-                                 text=f'Your current timezone is set to "{current_timezone}". '
-                                      'If you want to change it, choose your region',
-                                 reply_markup=reply)
-        return
-    location = context.args[0]
-    if location in pytz.all_timezones:
-        redis.set(f'group:{update.message.chat_id}:settings:timezone', location)
-        tz = timezone(location)
-        local_time = update.message.date.astimezone(tz).strftime('%X')
-        context.bot.send_message(chat_id=update.message.chat_id,
-                                 text=f'Timezone of this group was set to {location}. Looks like it is {local_time}. '
-                                      f'If this is incorrect, please execute /timezone again.')
-        if redis.get(f'group:{update.message.chat_id}:last_scored_day') is None:
-            now = datetime.now().astimezone(tz)
-            if now.hour > 13 or (now.hour == 13 and now.minute > 37):
-                last_score = now
-            else:
-                last_score = now - timedelta(days=1)
-            redis.set(f'group:{update.message.chat_id}:last_scored_day', last_score.strftime('%Y-%m-%d'))
-    elif location in continents:
-        zones = [x for x in pytz.all_timezones if x.startswith(location)]
-        reply = ReplyKeyboardMarkup(
-            [[KeyboardButton(f'/timezone {zone}')] for zone in zones],
-            one_time_keyboard=True
-        )
-        context.bot.send_message(chat_id=update.message.chat_id, text='Choose your timezone', reply_markup=reply)
-    else:
-        context.bot.send_message(chat_id=update.message.chat_id, text="Sorry, I've never heard of that timezone")
+    current_timezone = redis.get(f'chat:{update.message.chat_id}:settings:timezone')
+    reply = get_timezone_region_markup(continents)
+    context.bot.send_message(chat_id=update.message.chat_id,
+                             text=f'Your current timezone is set to "{current_timezone}". '
+                                  'If you want to change it, choose your region',
+                             reply_markup=reply)
 
 
 def handle_start_command(update: Update, context: CallbackContext):
@@ -228,6 +212,48 @@ def handle_sprueche_command(update: Update, context: CallbackContext):
         context.bot.send_message(chat_id=update.message.chat_id, text='Dann halt nich')
 
 
+def handle_inlinebutton_click(update: Update, context: CallbackContext):
+    query: CallbackQuery = update.callback_query
+    cmd, *args = query.data.split(':')
+
+    if cmd == 'timezone':
+        inlinebutton_timezone(update, context, query, args)
+    elif cmd == 'cancel':
+        query.edit_message_text('Canceled')
+
+    query.answer()
+
+
+def inlinebutton_timezone(update: Update, context: CallbackContext, query: CallbackQuery, args: List[str]):
+    continents = sorted(set([x.partition('/')[0] for x in pytz.common_timezones]))
+    location = args[0]
+    if location == 'region_selection':
+        reply = get_timezone_region_markup(continents)
+        query.edit_message_text('Choose your region')
+        query.edit_message_reply_markup(reply)
+    elif location in pytz.all_timezones:
+        redis.set(f'chat:{query.message.chat_id}:settings:timezone', location)
+        tz = timezone(location)
+        local_time = query.message.date.astimezone(tz).strftime('%X')
+        reply = InlineKeyboardMarkup(
+            [[(InlineKeyboardButton('Change timezone', callback_data='timezone:region_selection'))]]
+        )
+        query.edit_message_text(
+            f'Timezone of this chat was set to {location}. '
+            f'Looks like it was {local_time} when you sent the last /timezone command. '
+            'If this is incorrect, please execute /timezone again or click the button below.'
+        )
+        query.edit_message_reply_markup(reply)
+    elif location in continents:
+        zones = [x for x in pytz.all_timezones if x.startswith(location)]
+        reply = InlineKeyboardMarkup(
+            [[InlineKeyboardButton(x.partition('/')[2], callback_data=':'.join(['timezone', x]))] for x in zones]
+            + [[(InlineKeyboardButton('« Back', callback_data='timezone:region_selection'))]],
+        )
+        query.edit_message_text('Choose your timezone')
+        query.edit_message_reply_markup(reply)
+
+
 def main():
     if 'TELEGRAM_TOKEN' not in os.environ:
         logging.error('You need to set the environment variable "TELEGRAM_TOKEN"')
@@ -240,12 +266,13 @@ def main():
         BotCommand('clock', 'Outputs the date of the received message'),
         BotCommand('my_id', 'Outputs your id which is internally used for score tracking'),
     ])
-    updater.dispatcher.add_handler(CommandHandler('timezone', handle_timezone_command, Filters.group))
+    updater.dispatcher.add_handler(CommandHandler('timezone', handle_timezone_command))
     updater.dispatcher.add_handler(CommandHandler('start', handle_start_command))
     updater.dispatcher.add_handler(CommandHandler('score', handle_score_command))
     updater.dispatcher.add_handler(CommandHandler('clock', handle_clock_command))
     updater.dispatcher.add_handler(CommandHandler('my_id', handle_my_id_command))
     updater.dispatcher.add_handler(CommandHandler('sprueche', handle_sprueche_command))
+    updater.dispatcher.add_handler(CallbackQueryHandler(handle_inlinebutton_click))
     updater.dispatcher.add_handler(
         MessageHandler(Filters.group & (Filters.text | Filters.sticker), handle_incoming_message))
     updater.dispatcher.add_handler(MessageHandler(Filters.status_update.new_chat_members, handle_added_to_group))
