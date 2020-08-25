@@ -8,7 +8,8 @@ import pytz
 from pytz import timezone
 
 from telegram.ext import Updater, MessageHandler, Filters, CommandHandler, CallbackContext, CallbackQueryHandler
-from telegram import Update, BotCommand, User, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
+from telegram import Update, BotCommand, User, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, \
+    ReplyKeyboardRemove
 from redis import Redis
 
 import logging
@@ -172,7 +173,8 @@ def handle_start_command(update: Update, context: CallbackContext):
     context.bot.send_message(chat_id=update.message.chat_id,
                              text="Hi there! I'll check the 13:37 score in a group chat. "
                                   "Just add me to a group, and when the clock says 13:37, "
-                                  "be the first to write something in the group!")
+                                  "be the first to write something in the group!",
+                             reply_markup=ReplyKeyboardRemove())
     # "If you want to, I'll pin the current score to the chat. "
     # "Make me an admin of the group to allow me to do that.")
 
