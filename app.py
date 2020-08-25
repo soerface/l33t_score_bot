@@ -54,7 +54,7 @@ def increase_score(chat_id: int, user: User, n=1):
 def build_chat_scores(chat_id: int):
     scores = []
     for key in redis.scan_iter(f'group:{chat_id}:score:*'):
-        user_id = int(key.rpartition(b':')[2])
+        user_id = int(key.rpartition(':')[2])
         name = redis.get(f'user:{user_id}:name')
         value = int(redis.get(key))
         scores.append((name, value))
