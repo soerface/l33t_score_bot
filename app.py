@@ -40,6 +40,17 @@ SPRUECHE = [
     'Heute geht die hier 🥇 wohl an mich',
 ]
 
+SPRUECHE_EARLY = [
+    'Zu früh!',
+    'Noob!',
+    'Na, geht die Uhr falsch?',
+    'Kauf dir doch mal ne Uhr die richtig geht!',
+    'Kommst du sonst auch zu früh?',
+    'So wird das aber nichts.',
+    'Knapp vorbei ist auch daneben.',
+    '⏱',
+]
+
 
 def utc_to_local(utc_dt):
     return utc_dt.replace(tzinfo=timezone.utc).astimezone(tz=None)
@@ -49,6 +60,10 @@ def increase_score(chat_id: int, user: User, n=1):
     score = int(redis.get(f'group:{chat_id}:score:{user.id}') or 0)
     redis.set(f'group:{chat_id}:score:{user.id}', score + n)
     redis.set(f'user:{user.id}:name', user.first_name)
+
+
+def decrease_score(chat_id: int, user: User, n=1):
+    increase_score(chat_id, user, n * -1)
 
 
 def build_chat_scores(chat_id: int):
@@ -100,7 +115,15 @@ def handle_group_chat(update: Update, context: CallbackContext):
     last_day = datetime.strptime(last_scored_day, '%Y-%m-%d').astimezone(tz)
     delta = (this_day - last_day)
 
-    if hour == 13 and minute == 37 and delta.days >= 1:
+    if hour == 13 and minute == 36:
+        looser: User = update.message.from_user
+        decrease_score(chat_id, looser)
+        if redis.get(f'group:{update.message.chat_id}:settings:sprueche_early'):
+            context.bot.send_message(chat_id=chat_id, text=choice(SPRUECHE_EARLY))
+        else:
+            context.bot.send_message(chat_id=chat_id, text=f'That was too early. That\'s gonna cost you a point.')
+
+    elif hour == 13 and minute == 37 and delta.days >= 1:
         winner: User = update.message.from_user
         increase_score(chat_id, winner)
         redis.set(f'group:{chat_id}:last_scored_day', today)
@@ -214,6 +237,17 @@ def handle_sprueche_command(update: Update, context: CallbackContext):
         context.bot.send_message(chat_id=update.message.chat_id, text='Dann halt nich')
 
 
+def handle_sprueche_early_command(update: Update, context: CallbackContext):
+    if len(context.args) == 0:
+        return
+    if context.args[0] == 'AN':
+        redis.set(f'group:{update.message.chat_id}:settings:sprueche_early', 1)
+        context.bot.send_message(chat_id=update.message.chat_id, text='Na wenn ihr das vertragt')
+    elif context.args[0] == 'AUS':
+        redis.delete(f'group:{update.message.chat_id}:settings:sprueche_early')
+        context.bot.send_message(chat_id=update.message.chat_id, text='Dann halt nich')
+
+
 def handle_inlinebutton_click(update: Update, context: CallbackContext):
     query: CallbackQuery = update.callback_query
     cmd, *args = query.data.split(':')
@@ -274,6 +308,7 @@ def main():
     updater.dispatcher.add_handler(CommandHandler('clock', handle_clock_command))
     updater.dispatcher.add_handler(CommandHandler('my_id', handle_my_id_command))
     updater.dispatcher.add_handler(CommandHandler('sprueche', handle_sprueche_command))
+    updater.dispatcher.add_handler(CommandHandler('sprueche_early', handle_sprueche_early_command))
     updater.dispatcher.add_handler(CallbackQueryHandler(handle_inlinebutton_click))
     updater.dispatcher.add_handler(
         MessageHandler(Filters.group & (Filters.text | Filters.sticker), handle_incoming_message))
