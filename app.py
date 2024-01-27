@@ -315,6 +315,7 @@ def main():
     updater.dispatcher.add_handler(MessageHandler(Filters.status_update.new_chat_members, handle_added_to_group))
     updater.dispatcher.add_handler(MessageHandler(Filters.status_update.left_chat_member, handle_removed_from_group))
 
+    logging.info("Ready")
     updater.start_polling()
 
 

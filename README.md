@@ -27,7 +27,7 @@ Install [docker](https://docs.docker.com/engine/install/) and
 
 Spin up the application:
 
-    docker-compose up
+    docker compose up
     
 ## Advanced configuration
 
@@ -43,6 +43,10 @@ The following environment variables can be used in .env file:
 
 ## Development setup
 
-- Install [pipenv](https://github.com/pypa/pipenv)
-- Install dependencies via `pipenv sync`
-- Install [redis](https://redis.io/) (`apt install redis`)
+- Install [poetry](https://python-poetry.org/)
+- Install dependencies via `poetry install`
+- Run `docker compose -f docker-compose.dev.yml up`
+- Run
+  - `export TELEGRAM_TOKEN=your_token`
+  - `export REDIS_HOST=localhost`
+- Run `poetry run python app.py`

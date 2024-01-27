@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "l33t-score-bot"
+version = "0.1.0"
+description = ""
+authors = ["Soeren Wegener <wegener92@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "l33t_score_bot"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+requests = "^2.31.0"
+python-telegram-bot = "12.7"
+pytz = "^2023.3.post1"
+redis = "^5.0.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
