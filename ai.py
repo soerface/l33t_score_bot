@@ -13,6 +13,7 @@ def make_query(prompt: str) -> str:
     client = OpenAI(
         api_key=api_key,
     )
+    logger.info(f"Making query: {prompt}")
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
