@@ -113,7 +113,7 @@ def handle_group_chat(update: Update, context: CallbackContext):
 
     today = msg_sent_date.strftime('%Y-%m-%d')
     yesterday = (msg_sent_date - timedelta(days=1)).strftime('%Y-%m-%d')
-    last_scored_day = redis.get(f'group:{chat_id}:last_scored_day', today)
+    last_scored_day = redis.get(f'group:{chat_id}:last_scored_day') or today
     this_day = datetime.strptime(today, '%Y-%m-%d').astimezone(tz)
     last_day = datetime.strptime(last_scored_day, '%Y-%m-%d').astimezone(tz)
     delta = (this_day - last_day)
