@@ -13,6 +13,7 @@ requests = "^2.31.0"
 python-telegram-bot = "12.7"
 pytz = "^2023.3.post1"
 redis = "^5.0.1"
+openai = "^1.10.0"
 
 
 [build-system]

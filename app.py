@@ -14,6 +14,8 @@ from redis import Redis
 
 import logging
 
+import ai
+
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.getLevelName(os.environ.get('LOG_LEVEL', 'INFO')))
 
@@ -66,7 +68,7 @@ def decrease_score(chat_id: int, user: User, n=1):
     increase_score(chat_id, user, n * -1)
 
 
-def build_chat_scores(chat_id: int):
+def build_chat_scores(chat_id: int, indent: int = 0):
     scores = []
     for key in redis.scan_iter(f'group:{chat_id}:score:*'):
         user_id = int(key.rpartition(':')[2])
@@ -76,7 +78,8 @@ def build_chat_scores(chat_id: int):
     if not scores:
         return 'No one has made any points so far…'
     scores = sorted(scores, key=lambda x: x[1], reverse=True)
-    return '\n'.join([f'- {x[0]}: {x[1]}' for x in scores])
+    space = " " * indent
+    return '\n'.join([f'{space}- {x[0]}: {x[1]}' for x in scores])
 
 
 def get_timezone_region_markup(continents):
@@ -118,7 +121,11 @@ def handle_group_chat(update: Update, context: CallbackContext):
     if hour == 13 and minute == 36:
         looser: User = update.message.from_user
         decrease_score(chat_id, looser)
-        if redis.get(f'group:{update.message.chat_id}:settings:sprueche_early'):
+        current_score = int(redis.get(f'group:{chat_id}:score:{looser.id}'))
+        if current_score >= 0 and redis.get(f'group:{update.message.chat_id}:settings:openai'):
+            text = ai.get_too_early_message(looser.first_name, update.message.text)
+            context.bot.send_message(chat_id=chat_id, text=text)
+        elif redis.get(f'group:{update.message.chat_id}:settings:sprueche_early'):
             context.bot.send_message(chat_id=chat_id, text=choice(SPRUECHE_EARLY))
         else:
             context.bot.send_message(chat_id=chat_id, text=f'That was too early. That\'s gonna cost you a point.')
@@ -127,21 +134,31 @@ def handle_group_chat(update: Update, context: CallbackContext):
         winner: User = update.message.from_user
         increase_score(chat_id, winner)
         redis.set(f'group:{chat_id}:last_scored_day', today)
-        context.bot.send_message(chat_id=chat_id, text=f'Congratz, {winner.first_name}! Scores:')
-        if delta.days > 1:
-            n = delta.days - 1
-            msg = 'day' if n == 1 else f'{n} days'
-            context.bot.send_message(chat_id=chat_id,
-                                     text=f"Wait a second. You forgot the last {msg}. So I'll get some points, too.")
-            increase_score(chat_id, context.bot, n=n)
-        context.bot.send_message(chat_id=chat_id, text=build_chat_scores(chat_id))
+        if redis.get(f'group:{update.message.chat_id}:settings:openai'):
+            if delta.days > 1:
+                bot_wins_extra = delta.days - 1
+                increase_score(chat_id, context.bot, n=bot_wins_extra)
+            else:
+                bot_wins_extra = 0
+            text = ai.get_success_message(
+                context.bot.first_name,
+                winner.first_name,
+                update.message.text,
+                build_chat_scores(chat_id, indent=2),
+                bot_wins_extra=bot_wins_extra,
+            )
+            context.bot.send_message(chat_id=chat_id, text=text)
+        else:
+            context.bot.send_message(chat_id=chat_id, text=f'Congratz, {winner.first_name}! Scores:')
+            if delta.days > 1:
+                n = delta.days - 1
+                msg = 'day' if n == 1 else f'{n} days'
+                context.bot.send_message(chat_id=chat_id,
+                                         text=f"Wait a second. You forgot the last {msg}. So I'll get some points, too.")
+                increase_score(chat_id, context.bot, n=n)
+            context.bot.send_message(chat_id=chat_id, text=build_chat_scores(chat_id))
 
     elif ((hour == 13 and minute > 37) or hour > 13) and delta.days == 1 or delta.days > 1:
-        if redis.get(f'group:{update.message.chat_id}:settings:sprueche'):
-            context.bot.send_message(chat_id=chat_id, text=choice(SPRUECHE))
-        else:
-            context.bot.send_message(chat_id=chat_id, text=f'Oh dear. You forgot 13:37. Point for me')
-
         if (hour == 13 and minute > 37) or hour > 13:
             n = delta.days
             redis.set(f'group:{chat_id}:last_scored_day', today)
@@ -149,11 +166,25 @@ def handle_group_chat(update: Update, context: CallbackContext):
             n = delta.days - 1
             redis.set(f'group:{chat_id}:last_scored_day', yesterday)
 
-        if n > 1:
-            context.bot.send_message(chat_id=chat_id,
-                                     text=f"You even forgot it for {n} days... I'm disappointed.")
         increase_score(chat_id, context.bot, n=n)
-        context.bot.send_message(chat_id=chat_id, text=build_chat_scores(chat_id))
+
+        if redis.get(f'group:{update.message.chat_id}:settings:openai'):
+            text = ai.get_lost_message(
+                context.bot.first_name,
+                build_chat_scores(chat_id, indent=2),
+                n,
+            )
+            context.bot.send_message(chat_id=chat_id, text=text)
+        else:
+            if redis.get(f'group:{update.message.chat_id}:settings:sprueche'):
+                context.bot.send_message(chat_id=chat_id, text=choice(SPRUECHE))
+            else:
+                context.bot.send_message(chat_id=chat_id, text=f'Oh dear. You forgot 13:37. Point for me')
+
+            if n > 1:
+                context.bot.send_message(chat_id=chat_id,
+                                         text=f"You even forgot it for {n} days... I'm disappointed.")
+            context.bot.send_message(chat_id=chat_id, text=build_chat_scores(chat_id))
 
     # out_msg = context.bot.send_message(...)chat_id=update.message.chat_id, text=f'Your message was from {msg_sent_date}')
     # try:
@@ -184,7 +215,7 @@ def handle_removed_from_group(update: Update, context: CallbackContext):
 
 def handle_timezone_command(update: Update, context: CallbackContext):
     continents = sorted(set([x.partition('/')[0] for x in pytz.common_timezones]))
-    current_timezone = redis.get(f'chat:{update.message.chat_id}:settings:timezone')
+    current_timezone = redis.get(f'group:{update.message.chat_id}:settings:timezone')
     reply = get_timezone_region_markup(continents)
     context.bot.send_message(chat_id=update.message.chat_id,
                              text=f'Your current timezone is set to "{current_timezone}". '
@@ -268,7 +299,7 @@ def inlinebutton_timezone(update: Update, context: CallbackContext, query: Callb
         query.edit_message_text('Choose your region')
         query.edit_message_reply_markup(reply)
     elif location in pytz.all_timezones:
-        redis.set(f'chat:{query.message.chat_id}:settings:timezone', location)
+        redis.set(f'group:{query.message.chat_id}:settings:timezone', location)
         tz = timezone(location)
         local_time = query.message.date.astimezone(tz).strftime('%X')
         reply = InlineKeyboardMarkup(
