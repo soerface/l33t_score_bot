@@ -9,7 +9,7 @@ from pytz import timezone
 
 from telegram.ext import Updater, MessageHandler, Filters, CommandHandler, CallbackContext, CallbackQueryHandler
 from telegram import Update, BotCommand, User, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, \
-    ReplyKeyboardRemove
+    ReplyKeyboardRemove, ChatAction
 from redis import Redis
 
 import logging
@@ -92,10 +92,13 @@ def get_timezone_region_markup(continents):
 def handle_incoming_message(update: Update, context: CallbackContext):
     logging.debug(update.effective_chat)
     msg = update.message
+    if not msg:
+        logging.info(f'No message. Update: {update}')
+        return
     {
         'group': handle_group_chat,
         'supergroup': handle_group_chat,
-    }.get(update.message.chat.type, handle_unknown_message_type)(update, context)
+    }.get(msg.chat.type, handle_unknown_message_type)(update, context)
     user = msg.from_user.username or msg.from_user.first_name
     logging.debug(f'Received message from "{user}": "{msg.text}"')
 
@@ -122,6 +125,7 @@ def handle_group_chat(update: Update, context: CallbackContext):
         looser: User = update.message.from_user
         decrease_score(chat_id, looser)
         current_score = int(redis.get(f'group:{chat_id}:score:{looser.id}'))
+        context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
         if current_score >= 0 and redis.get(f'group:{update.message.chat_id}:settings:openai'):
             text = ai.get_too_early_message(looser.first_name, update.message.text, current_score)
             context.bot.send_message(chat_id=chat_id, text=text)
@@ -140,6 +144,7 @@ def handle_group_chat(update: Update, context: CallbackContext):
                 increase_score(chat_id, context.bot, n=bot_wins_extra)
             else:
                 bot_wins_extra = 0
+            context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
             text = ai.get_success_message(
                 context.bot.first_name,
                 winner.first_name,
@@ -167,6 +172,7 @@ def handle_group_chat(update: Update, context: CallbackContext):
             redis.set(f'group:{chat_id}:last_scored_day', yesterday)
 
         increase_score(chat_id, context.bot, n=n)
+        context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
 
         if redis.get(f'group:{update.message.chat_id}:settings:openai'):
             text = ai.get_lost_message(

@@ -16,6 +16,7 @@ def make_query(prompt: str) -> str:
     logger.info(f"Making query: {prompt}")
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
+        # model="gpt-4-turbo-preview",  # long response times
         messages=[
             {"role": "system", "content": prompt},
         ]
