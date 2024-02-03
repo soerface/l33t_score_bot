@@ -23,10 +23,10 @@ def make_query(prompt: str) -> str:
     return response.choices[0].message.content
 
 
-def get_too_early_message(username: str, chatmessage: str) -> str:
+def get_too_early_message(username: str, chatmessage: str, points_left: int) -> str:
     prompt = f"""
 {username} hat heute um 13:36 statt 13:37 eine Chatnachricht geschrieben und damit einen Punkt verloren.
-Er hat jetzt noch 8. Seine Nachricht war: "{chatmessage}". Beleidige ihn lustig dafür. Halte dich kurz.
+Die Person hat jetzt noch {points_left}. Die Nachricht war: "{chatmessage}". Beleidige die Person lustig dafür.
 """
     return make_query(prompt)
 

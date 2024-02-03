@@ -123,7 +123,7 @@ def handle_group_chat(update: Update, context: CallbackContext):
         decrease_score(chat_id, looser)
         current_score = int(redis.get(f'group:{chat_id}:score:{looser.id}'))
         if current_score >= 0 and redis.get(f'group:{update.message.chat_id}:settings:openai'):
-            text = ai.get_too_early_message(looser.first_name, update.message.text)
+            text = ai.get_too_early_message(looser.first_name, update.message.text, current_score)
             context.bot.send_message(chat_id=chat_id, text=text)
         elif redis.get(f'group:{update.message.chat_id}:settings:sprueche_early'):
             context.bot.send_message(chat_id=chat_id, text=choice(SPRUECHE_EARLY))
