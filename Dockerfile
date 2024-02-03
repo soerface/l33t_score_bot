@@ -10,6 +10,6 @@ RUN mkdir /app
 
 WORKDIR /app
 
-COPY *.py ./
+COPY src/. ./
 ENTRYPOINT ["poetry", "run"]
 CMD python app.py
