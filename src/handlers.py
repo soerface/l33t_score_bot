@@ -8,15 +8,13 @@ from telegram.constants import ChatAction
 from telegram.ext import CallbackContext
 
 import ai
+from constants import OPENAI_ENABLED_GROUPS
 from db import redis
 from utils import get_timezone_region_markup, build_chat_scores, decrease_score, increase_score
 
 logger = logging.getLogger(__name__)
 
-OPENAI_ENABLED_GROUPS = [
-    -1001275377792,
-    -379119028,
-]
+
 
 
 async def timezone_command(update: Update, context: CallbackContext):
@@ -119,7 +117,7 @@ async def group_chat_message(update: Update, context: CallbackContext):
     today = msg_sent_date.strftime('%Y-%m-%d')
     yesterday = (msg_sent_date - timedelta(days=1)).strftime('%Y-%m-%d')
     last_scored_day = redis.get(f'group:{chat_id}:last_scored_day') or yesterday
-    # last_scored_day = (msg_sent_date - timedelta(days=1)).strftime('%Y-%m-%d')  # DEBUG
+    last_scored_day = (msg_sent_date - timedelta(days=1)).strftime('%Y-%m-%d')  # DEBUG
     this_day = datetime.strptime(today, '%Y-%m-%d').astimezone(tz)
     last_day = datetime.strptime(last_scored_day, '%Y-%m-%d').astimezone(tz)
     delta = (this_day - last_day)

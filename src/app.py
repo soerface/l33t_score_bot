@@ -1,11 +1,13 @@
 import os
 import sys
 
-from telegram.ext import MessageHandler, CommandHandler, CallbackQueryHandler, Application, filters
+from telegram.constants import ParseMode
+from telegram.ext import MessageHandler, CommandHandler, CallbackQueryHandler, Application, filters, ExtBot
 from telegram import BotCommand
 
 import logging
 
+import constants
 import handlers
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -17,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 async def post_init(app: Application) -> None:
+    app.bot: ExtBot
     await app.bot.set_my_commands([
         BotCommand('start', 'Returns a warming welcome message'),
         BotCommand('timezone', 'Changes the timezone of a group'),
@@ -24,6 +27,14 @@ async def post_init(app: Application) -> None:
         BotCommand('clock', 'Outputs the date of the received message'),
         BotCommand('my_id', 'Outputs your id which is internally used for score tracking'),
     ])
+    logger.info(f"Application ready. Version {constants.COMMIT_SHA}")
+    if constants.ADMIN_USER_ID:
+        version_link = f"[{constants.COMMIT_SHA[:7]}](https://github.com/soerface/l33t_score_bot/commit/{constants.COMMIT_SHA})"
+        await app.bot.send_message(
+            chat_id=constants.ADMIN_USER_ID,
+            text=f"Application ready\. Version {version_link}",
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
 
 
 def main():

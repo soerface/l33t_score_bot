@@ -10,6 +10,9 @@ RUN mkdir /app
 
 WORKDIR /app
 
+ARG COMMIT_SHA
+ENV COMMIT_SHA=$COMMIT_SHA
+
 COPY src/. ./
 ENTRYPOINT ["poetry", "run"]
 CMD python app.py
