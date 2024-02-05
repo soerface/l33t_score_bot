@@ -1,9 +1,6 @@
 name: CI/CD
 
-on:
-  push:
-    branches:
-      - master
+on: push
 
 jobs:
   test:
@@ -26,6 +23,7 @@ jobs:
 
   build-image:
     runs-on: ubuntu-22.04
+    if: github.ref == 'refs/heads/master'
     needs:
       - test
     steps:
@@ -42,6 +40,7 @@ jobs:
 
   deploy:
     runs-on: ubuntu-22.04
+    if: github.ref == 'refs/heads/master'
     needs:
       - build-image
     steps:
