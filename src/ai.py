@@ -50,13 +50,15 @@ Gib eine lustige Antwort auf seine Nachricht. Mache dich über den Punktestand a
 - Du bekommst Punkte für jeden Tag, an dem jemand anders NICHT um 13:37 schreibt"""
     return make_query(prompt)
 
-def get_lost_message(bot_name: str, current_scores: str, bot_points: int) -> str:
+def get_lost_message(bot_name: str, username: str, chatmessage: str, current_scores: str, bot_points: int) -> str:
     now = datetime.now()
     prompt = f"""
 Du bist {bot_name}. Weil die Chatteilnehmer die letzten {bot_points} Tage vergessen haben, um 13:37 zu schreiben, hast du {bot_points} Punkt(e) erhalten.
 Mache dich über den Punktestand aller Teilnehmer lustig. Achte genau darauf, auf welchem Platz du selbst bist.
+Mache dich über die letzte Nachricht lustig.
 
 - Heute ist der {now.strftime("%d.%m.%Y")}
+- Letzte Nachricht (von {username}): "{chatmessage}"
 - Aktuelle Punktzahl:
 {current_scores}
 - Man bekommt Punkte abgezogen, wenn man um 13:36 schreibt

@@ -1,4 +1,4 @@
-from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+from telegram import InlineKeyboardMarkup, InlineKeyboardButton, User
 
 from db import redis
 
@@ -22,3 +22,14 @@ def build_chat_scores(chat_id: int, indent: int = 0):
     scores = sorted(scores, key=lambda x: x[1], reverse=True)
     space = " " * indent
     return '\n'.join([f'{space}- {x[0]}: {x[1]}' for x in scores])
+
+
+def increase_score(chat_id: int, user: User, n=1):
+    score_str = redis.get(f'group:{chat_id}:score:{user.id}')
+    score = int(score_str or 0)
+    redis.set(f'group:{chat_id}:score:{user.id}', score + n)
+    redis.set(f'user:{user.id}:name', user.first_name)
+
+
+def decrease_score(chat_id: int, user: User, n=1):
+    increase_score(chat_id, user, n * -1)
