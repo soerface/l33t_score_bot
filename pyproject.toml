@@ -5,7 +5,6 @@ description = ""
 authors = ["Soeren Wegener <wegener92@gmail.com>"]
 license = "MIT"
 readme = "README.md"
-packages = [{include = "l33t_score_bot"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
