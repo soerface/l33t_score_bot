@@ -5,6 +5,7 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
+
 def make_query(prompt: str) -> str:
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -19,7 +20,7 @@ def make_query(prompt: str) -> str:
         # model="gpt-4-turbo-preview",  # long response times
         messages=[
             {"role": "system", "content": prompt},
-        ]
+        ],
     )
     return response.choices[0].message.content
 
@@ -32,9 +33,18 @@ Die Person hat jetzt noch {points_left}. Die Nachricht war: "{chatmessage}". Bel
     return make_query(prompt)
 
 
-def get_success_message(bot_name: str, username: str, chatmessage: str, current_scores: str, bot_wins_extra: int = 0) -> str:
+def get_success_message(
+    bot_name: str,
+    username: str,
+    chatmessage: str,
+    current_scores: str,
+    bot_wins_extra: int = 0,
+) -> str:
     if bot_wins_extra > 0:
-        extra_text = f"Weil die letzten {bot_wins_extra} Tage niemand um 13:37 geschrieben hat, hast du {bot_wins_extra} Punkt(e) erhalten. Mache dich darüber besonders lustig.\n"
+        extra_text = (
+            f"Weil die letzten {bot_wins_extra} Tage niemand um 13:37 geschrieben hat, hast "
+            f"du {bot_wins_extra} Punkt(e) erhalten. Mache dich darüber besonders lustig.\n"
+        )
     else:
         extra_text = ""
     now = datetime.now()
@@ -50,10 +60,15 @@ Gib eine lustige Antwort auf seine Nachricht. Mache dich über den Punktestand a
 - Du bekommst Punkte für jeden Tag, an dem jemand anders NICHT um 13:37 schreibt"""
     return make_query(prompt)
 
-def get_lost_message(bot_name: str, username: str, chatmessage: str, current_scores: str, bot_points: int) -> str:
+
+def get_lost_message(
+    bot_name: str, username: str, chatmessage: str, current_scores: str, bot_points: int
+) -> str:
     now = datetime.now()
     prompt = f"""
-Du bist {bot_name}. Weil die Chatteilnehmer die letzten {bot_points} Tage vergessen haben, um 13:37 zu schreiben, hast du {bot_points} Punkt(e) erhalten.
+Du bist {bot_name}.
+Weil die Chatteilnehmer die letzten {bot_points} Tage vergessen haben,
+um 13:37 zu schreiben, hast du {bot_points} Punkt(e) erhalten.
 Mache dich über den Punktestand aller Teilnehmer lustig. Achte genau darauf, auf welchem Platz du selbst bist.
 Mache dich über die letzte Nachricht lustig.
 
