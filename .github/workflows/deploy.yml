@@ -23,3 +23,19 @@ jobs:
 #      run: poetry run flake8 .
     - name: Run tests
       run: poetry run pytest
+
+  build-image:
+    runs-on: ubuntu-22.04
+#    needs:
+#      - test
+    steps:
+      - uses: actions/checkout@v1
+      - run: |
+          echo "COMMIT_SHA=${{ github.sha }}" > .env
+      - name: Build image
+        run: docker compose build
+      - name: Log in to registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u soerface --password-stdin
+      - name: Push image
+        run: |
+          docker push ghcr.io/soerface/l33t_score_bot:${{ github.sha }}
