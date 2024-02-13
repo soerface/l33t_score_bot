@@ -117,6 +117,100 @@ async def start_command(update: Update, context: CallbackContext):
     # "Make me an admin of the group to allow me to do that.")
 
 
+async def challenge_callback(context: CallbackContext):
+    chat_id = context.job.chat_id
+    # data = context.job.data
+    await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+    challenge = ai.get_challenge_message()
+    redis.set(f"group:{chat_id}:last_challenge", challenge)
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text=challenge,
+    )
+
+
+async def challenge_command(update: Update, context: CallbackContext):
+    if not redis.get(f"group:{update.message.chat_id}:settings:openai"):
+        await context.bot.send_message(
+            chat_id=update.message.chat_id,
+            text="I'm sorry, but this feature is not available for this group.",
+        )
+        return
+
+    # cancel all previous jobs
+    for job in context.job_queue.get_jobs_by_name(
+        f"challenge_{update.message.chat_id}"
+    ):
+        job.schedule_removal()
+
+    redis.delete(f"group:{update.message.chat_id}:last_challenge")
+
+    timezone = redis.get(f"group:{update.message.chat_id}:settings:timezone")
+    tz = pytz.timezone(timezone)
+    due = tz.localize(
+        datetime.now().replace(hour=13, minute=37, second=0, microsecond=0)
+    )
+    # DEBUG
+    # due = datetime.now(tz) + timedelta(seconds=1)
+    if datetime.now(tz) > due:
+        due += timedelta(days=1)
+    chat_id = update.message.chat_id
+    context.job_queue.run_once(
+        challenge_callback,
+        due.astimezone(pytz.utc),
+        chat_id=chat_id,
+        name=f"challenge_{chat_id}",
+        # data="foobar",
+    )
+    await context.bot.send_message(
+        chat_id=update.message.chat_id,
+        text=(
+            f"Neue Challenge aktiviert. Ich melde mich wieder am {due.strftime('%d.%m.%Y um %H:%M:%S %Z')} "
+            "(falls ich zwischendurch nicht neugestartet werde)."
+        ),
+    )
+
+
+async def group_chat_message_with_challenges(
+    challenge: str, update: Update, context: CallbackContext
+):
+    user_answer = update.message.text
+    chat_id = update.message.chat_id
+    await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+    if ai.answer_is_correct(challenge, user_answer):
+        winner: User = update.message.from_user
+        increase_score(chat_id, winner)
+        redis.delete(f"group:{chat_id}:last_challenge")
+        await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+        message = ai.get_challenge_won_message(
+            bot_name=context.bot.first_name,
+            username=winner.first_name,
+            current_scores=build_chat_scores(chat_id, indent=2),
+            question=challenge,
+            answer=user_answer,
+        )
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=message,
+        )
+    else:
+        looser: User = update.message.from_user
+        decrease_score(chat_id, looser)
+        increase_score(chat_id, context.bot)
+        await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+        message = ai.get_challenge_lost_message(
+            bot_name=context.bot.first_name,
+            username=looser.first_name,
+            current_scores=build_chat_scores(chat_id, indent=2),
+            question=challenge,
+            answer=user_answer,
+        )
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=message,
+        )
+
+
 async def group_chat_message(update: Update, context: CallbackContext):
     chat_id: int = update.message.chat_id
     current_timezone = redis.get(f"group:{chat_id}:settings:timezone")
@@ -126,6 +220,12 @@ async def group_chat_message(update: Update, context: CallbackContext):
             text="Sorry to interrupt you, but you need to set a /timezone",
         )
         return
+
+    # check if a challenge is running
+    if challenge := redis.get(f"group:{chat_id}:last_challenge"):
+        await group_chat_message_with_challenges(challenge, update, context)
+        return
+
     tz = pytz.timezone(current_timezone)
     msg_sent_date = update.message.date.astimezone(tz)
     hour, minute = msg_sent_date.hour, msg_sent_date.minute
