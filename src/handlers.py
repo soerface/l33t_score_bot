@@ -154,6 +154,15 @@ async def challenge_command(update: Update, context: CallbackContext):
     # due = datetime.now(tz) + timedelta(seconds=1)
     if datetime.now(tz) > due:
         due += timedelta(days=1)
+    # Just pretend that for tomorrow, the regular 1337 challenge was already scored.
+    # Otherwise, after the challenge is done, it will give extra points for the next message after the challenge.
+    # Known downside: If you don't use the bot for multiple days and then start a challenge, the bot will
+    # not notice that it earns points for the forgotten days. This would need to be checked here before the
+    # "last_scored_day" is overwritten.
+    redis.set(
+        f"group:{update.message.chat_id}:last_scored_day",
+        due.strftime("%Y-%m-%d"),
+    )
     chat_id = update.message.chat_id
     context.job_queue.run_once(
         challenge_callback,
