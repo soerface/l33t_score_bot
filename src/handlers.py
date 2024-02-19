@@ -151,7 +151,7 @@ async def challenge_command(update: Update, context: CallbackContext):
         datetime.now().replace(hour=13, minute=37, second=0, microsecond=0)
     )
     # DEBUG
-    # due = datetime.now(tz) + timedelta(seconds=1)
+    due = datetime.now(tz) + timedelta(seconds=1)
     if datetime.now(tz) > due:
         due += timedelta(days=1)
     # Just pretend that for tomorrow, the regular 1337 challenge was already scored.
@@ -180,6 +180,29 @@ async def challenge_command(update: Update, context: CallbackContext):
     )
 
 
+async def autochallenge_command(update: Update, context: CallbackContext):
+    if not redis.get(f"group:{update.message.chat_id}:settings:openai"):
+        await context.bot.send_message(
+            chat_id=update.message.chat_id,
+            text="I'm sorry, but this feature is not available for this group.",
+        )
+        return
+
+    if redis.get(f"group:{update.message.chat_id}:autochallenge"):
+        redis.delete(f"group:{update.message.chat_id}:autochallenge")
+        await context.bot.send_message(
+            chat_id=update.message.chat_id,
+            text="Ich werde keine automatischen Challenges mehr starten.",
+        )
+    else:
+        redis.set(f"group:{update.message.chat_id}:autochallenge", "1")
+        await context.bot.send_message(
+            chat_id=update.message.chat_id,
+            text="Ich werde automatisch eine neue Challenge starten, sobald die aktuelle gelöst wurde.",
+        )
+        await challenge_command(update, context)
+
+
 async def group_chat_message_with_challenges(
     challenge: str, update: Update, context: CallbackContext
 ):
@@ -202,6 +225,8 @@ async def group_chat_message_with_challenges(
             chat_id=chat_id,
             text=message,
         )
+        if redis.get(f"group:{chat_id}:autochallenge"):
+            await challenge_command(update, context)
     else:
         looser: User = update.message.from_user
         decrease_score(chat_id, looser)

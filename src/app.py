@@ -57,6 +57,14 @@ COMMANDS = [
         "description": "Enable / disable daily challenges. The bot will send a challenge every day at 13:37",
         "handler": handlers.challenge_command,
     },
+    {
+        "command": "autochallenge",
+        "description": (
+            "Enable / disable automatic challenges. After a challenge is solved, the bot will "
+            "schedule a new one"
+        ),
+        "handler": handlers.autochallenge_command,
+    },
 ]
 
 
