@@ -104,7 +104,7 @@ def answer_is_correct(question: str, answer: str) -> bool:
     """
     response = make_query(prompt, {"role": "user", "content": answer})
     logger.info(f"AI response: {response}")
-    return response.strip().lower() == "richtig"
+    return "richtig" in response.strip().lower()
 
 
 def get_challenge_won_message(
