@@ -151,7 +151,7 @@ async def challenge_command(update: Update, context: CallbackContext):
         datetime.now().replace(hour=13, minute=37, second=0, microsecond=0)
     )
     # DEBUG
-    due = datetime.now(tz) + timedelta(seconds=1)
+    # due = datetime.now(tz) + timedelta(seconds=1)
     if datetime.now(tz) > due:
         due += timedelta(days=1)
     # Just pretend that for tomorrow, the regular 1337 challenge was already scored.
