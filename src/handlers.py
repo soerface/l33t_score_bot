@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import timedelta, datetime
 from typing import List
@@ -25,6 +26,37 @@ from utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class TelegramMessageLogHandler(logging.StreamHandler):
+    def __init__(self):
+        super().__init__()
+        self.loop = asyncio.get_event_loop()
+
+    def emit(self, record):
+        try:
+            chat_id = getattr(record, "chat_id")
+            if not chat_id:
+                return
+            if not redis.get(f"group:{chat_id}:settings:openai:debuglog"):
+                return
+            context: CallbackContext = getattr(record, "context")
+            self.loop.create_task(self._async_emit(record, context, chat_id))
+            # self.loop.run_until_complete(asyncio.gather(*asyncio.all_tasks(self.loop)))
+        except Exception:
+            self.handleError(record)
+
+    async def _async_emit(self, record, context: CallbackContext, chat_id: int):
+        await context.bot.send_message(
+            chat_id=chat_id, text=record.msg, parse_mode="HTML"
+        )
+
+    # def close(self) -> None:
+    #     self.loop.run_until_complete(asyncio.gather(*asyncio.all_tasks(self.loop)))
+    #     self.loop.close()
+
+
+logging.getLogger("ai").addHandler(TelegramMessageLogHandler())
 
 
 async def timezone_command(update: Update, context: CallbackContext):
@@ -121,7 +153,9 @@ async def challenge_callback(context: CallbackContext):
     chat_id = context.job.chat_id
     # data = context.job.data
     await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
-    challenge = ai.get_challenge_message()
+    challenge = ai.get_challenge_message(
+        logger_extra={"context": context, "chat_id": chat_id}
+    )
     redis.set(f"group:{chat_id}:last_challenge", challenge)
     await context.bot.send_message(
         chat_id=chat_id,
@@ -135,6 +169,7 @@ async def challenge_command(update: Update, context: CallbackContext):
             chat_id=update.message.chat_id,
             text="I'm sorry, but this feature is not available for this group.",
         )
+        logger.info(f"Challenge not available for group {update.message.chat_id}")
         return
 
     # cancel all previous jobs
@@ -150,8 +185,7 @@ async def challenge_command(update: Update, context: CallbackContext):
     due = tz.localize(
         datetime.now().replace(hour=13, minute=37, second=0, microsecond=0)
     )
-    # DEBUG
-    # due = datetime.now(tz) + timedelta(seconds=1)
+    # due = datetime.now(tz) + timedelta(seconds=1)  # DEBUG
     if datetime.now(tz) > due:
         due += timedelta(days=1)
     # Just pretend that for tomorrow, the regular 1337 challenge was already scored.
@@ -203,13 +237,32 @@ async def autochallenge_command(update: Update, context: CallbackContext):
         await challenge_command(update, context)
 
 
+async def debuglog_command(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    if redis.get(f"group:{chat_id}:settings:openai:debuglog"):
+        redis.delete(f"group:{chat_id}:settings:openai:debuglog")
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="Debug logging disabled",
+        )
+    else:
+        redis.set(f"group:{chat_id}:settings:openai:debuglog", "1")
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="Debug logging enabled",
+        )
+
+
 async def group_chat_message_with_challenges(
     challenge: str, update: Update, context: CallbackContext
 ):
     user_answer = update.message.text
     chat_id = update.message.chat_id
     await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
-    if ai.answer_is_correct(challenge, user_answer):
+
+    if ai.answer_is_correct(
+        challenge, user_answer, logger_extra={"context": context, "chat_id": chat_id}
+    ):
         winner: User = update.message.from_user
         increase_score(chat_id, winner)
         redis.delete(f"group:{chat_id}:last_challenge")
@@ -220,6 +273,7 @@ async def group_chat_message_with_challenges(
             current_scores=build_chat_scores(chat_id, indent=2),
             question=challenge,
             answer=user_answer,
+            logger_extra={"context": context, "chat_id": chat_id},
         )
         await context.bot.send_message(
             chat_id=chat_id,
@@ -238,6 +292,7 @@ async def group_chat_message_with_challenges(
             current_scores=build_chat_scores(chat_id, indent=2),
             question=challenge,
             answer=user_answer,
+            logger_extra={"context": context, "chat_id": chat_id},
         )
         await context.bot.send_message(
             chat_id=chat_id,
@@ -281,7 +336,10 @@ async def group_chat_message(update: Update, context: CallbackContext):
             f"group:{update.message.chat_id}:settings:openai"
         ):
             text = ai.get_too_early_message(
-                looser.first_name, update.message.text, current_score
+                looser.first_name,
+                update.message.text,
+                current_score,
+                logger_extra={"context": context, "chat_id": chat_id},
             )
             await context.bot.send_message(chat_id=chat_id, text=text)
         else:
@@ -310,6 +368,7 @@ async def group_chat_message(update: Update, context: CallbackContext):
                 update.message.text,
                 build_chat_scores(chat_id, indent=2),
                 bot_wins_extra=bot_wins_extra,
+                logger_extra={"context": context, "chat_id": chat_id},
             )
             await context.bot.send_message(chat_id=chat_id, text=text)
         else:
@@ -356,6 +415,7 @@ async def group_chat_message(update: Update, context: CallbackContext):
                 update.message.text,
                 build_chat_scores(chat_id, indent=2),
                 n,
+                logger_extra={"context": context, "chat_id": chat_id},
             )
             logger.info("Message generated")
             await context.bot.send_message(chat_id=chat_id, text=text)

@@ -65,6 +65,14 @@ COMMANDS = [
         ),
         "handler": handlers.autochallenge_command,
     },
+    {
+        "command": "debuglog",
+        "description": (
+            "Enable / disable debug logging. "
+            "When enabled, it will show the messages between the bot and OpenAI in the chat"
+        ),
+        "handler": handlers.debuglog_command,
+    },
 ]
 
 
